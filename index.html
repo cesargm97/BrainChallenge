@@ -5,22 +5,93 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="./style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- jQuery (requerido por DataTables Buttons) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/v/dt/dt-2.0.8/datatables.min.css">
+
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/v/dt/dt-2.0.8/datatables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
     <title>BrainChallenge</title>
 </head>
 <body>
-    <div id="contenedor-usuario" class="contenedor-usuario">
-        <label for="selector-usuario">¿Quién juega?</label>
-        <select id="selector-usuario"></select>
+
+<!-- Pantalla de login (visible cuando NO hay sesión) -->
+<div id="pantalla-login" class="pantalla-login">
+    <h1 class="pregunta">BrainChallenge</h1>
+    <p class="mensaje">Inicia sesión para jugar</p>
+
+    <form id="formLogin" class="form-login">
+        <label for="loginCorreo">Correo</label>
+        <input type="email" id="loginCorreo" placeholder="cesar@brain.com" required>
+
+        <label for="loginPassword">Contraseña</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" required>
+
+        <button type="submit">Entrar</button>
+    </form>
+
+    <p id="loginError" class="mensaje error" style="display:none;"></p>
+
+    <p class="mensaje" style="margin-top: 16px;">
+        ¿No tienes cuenta?
+        <a href="#" id="mostrarRegistro" style="color: var(--color-pregunta); text-decoration: underline;">Crear cuenta</a>
+    </p>
+</div>
+
+<!-- Pantalla de registro (oculta por defecto) -->
+<div id="pantalla-registro" class="pantalla-login" style="display:none;">
+    <h1 class="pregunta">Crear cuenta</h1>
+    <p class="mensaje">Regístrate para empezar a jugar</p>
+
+    <form id="formRegistro" class="form-login">
+        <label for="regNombre">Nombre</label>
+        <input type="text" id="regNombre" placeholder="Tu nombre" required minlength="3">
+
+        <label for="regCorreo">Correo</label>
+        <input type="email" id="regCorreo" placeholder="tucorreo@ejemplo.com" required>
+
+        <label for="regPassword">Contraseña</label>
+        <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" required minlength="6">
+
+        <button type="submit">Registrarme</button>
+    </form>
+
+    <p id="registroError" class="mensaje error" style="display:none;"></p>
+
+    <p class="mensaje" style="margin-top: 16px;">
+        ¿Ya tienes cuenta?
+        <a href="#" id="mostrarLogin" style="color: var(--color-pregunta); text-decoration: underline;">Iniciar sesión</a>
+    </p>
+</div>
+
+<!-- Header con info del usuario (visible cuando SÍ hay sesión) -->
+<div id="contenedor-usuario" class="contenedor-usuario" style="display:none;">
+    <span id="nombreUsuario"></span>
+    <div style="display: flex; gap: 8px;">
+        <button id="perfilBtn" class="boton-secundario">👤 Mi perfil</button>
+        <button id="renovarBtn" class="boton-secundario">🔄 Renovar</button>
+        <button id="logoutBtn" class="boton-secundario">Cerrar sesión</button>
     </div>
-    <section>
-        <div id="contenedor-preguntas">
-            <h2 class="pregunta">Cargando temas...</h2>
-        </div>
-        <div id="contenedor-opciones"></div>
-    </section>
-    <div id="contenedor-resultado"></div>
-    <div id="contenedor-historial"></div>
-    <canvas id="grafico-progreso" style="display:none; max-height: 320px; margin: 24px 0;"></canvas>
-    <script type="module" src="./main.js"></script>
+</div>
+
+<section>
+    <div id="contenedor-preguntas">
+        <h2 class="pregunta">Cargando temas...</h2>
+    </div>
+    <div id="contenedor-opciones"></div>
+</section>
+
+<div id="contenedor-resultado"></div>
+<div id="contenedor-historial"></div>
+<canvas id="grafico-progreso" style="display:none; max-height: 320px; margin: 24px 0;"></canvas>
+
+<script type="module" src="./main.js"></script>
 </body>
 </html>

@@ -57,24 +57,24 @@ let respuestasUsuario = [];
 let USUARIO_ACTUAL_ID = null;
 let chartInstance = null;
 
-// ============================================================
+
 // Elementos del DOM
-// ============================================================
 const contenedorUsuario = document.querySelector('#contenedor-usuario');
-const selectorUsuario = document.querySelector('#selector-usuario');
+//const selectorUsuario = document.querySelector('#selector-usuario');
 const contenedorPregunta = document.querySelector('#contenedor-preguntas');
 const contenedorOpciones = document.querySelector('#contenedor-opciones');
 const contenedorResultado = document.querySelector('#contenedor-resultado');
 const contenedorHistorial = document.querySelector('#contenedor-historial');
 
 
-// ============================================================
+
+
 // Arranque
-// ============================================================
-document.addEventListener('DOMContentLoaded', async () => {
-    await cargarUsuarios();
+document.addEventListener('DOMContentLoaded', () => {
+    verificarSesion();
 });
 
+/*(queda sin efecto para el login)
 async function cargarUsuarios() {
     try {
         const res = await fetch(`${API_URL}/api/usuarios`);
@@ -109,7 +109,7 @@ async function cargarUsuarios() {
         contenedorPregunta.innerHTML = '<h2 class="pregunta">Error</h2>';
         contenedorOpciones.innerHTML = `<p class="mensaje error">No se pudieron cargar los usuarios.<br>${error.message}</p>`;
     }
-}
+}*/
 
 
 // 1) Mostrar temas ( o categorías) — fetch a la API
@@ -121,6 +121,10 @@ async function mostrarTemas() {
     if (canvas) canvas.style.display = 'none';
     contenedorPregunta.innerHTML = '<h2 class="pregunta">Cargando temas...</h2>';
     contenedorOpciones.innerHTML = '';
+
+    // ⬇️ Determinar si el usuario actual es admin (ANTES del try)
+    const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+    const esAdmin = usuario.rol === 'ADMIN';
 
     try {
         const res = await fetch(`${API_URL}/api/categorias`);
@@ -139,17 +143,27 @@ async function mostrarTemas() {
             contenedorOpciones.appendChild(p);
         });
 
-        // Botones de acceso rápido (Ranking + Estadísticas)
+        // Botones de acceso rápido
         const acciones = document.createElement('div');
         acciones.className = 'botones-accion';
         acciones.innerHTML = `
+            <button id="historialBtn" class="boton-secundario">📋 Mi historial</button>
+            <button id="exportarDirectoBtn" class="boton-secundario">📥 Exportar CSV</button>
             <button id="rankingBtn" class="boton-secundario">🏆 Ver ranking global</button>
             <button id="misEstadisticasBtn" class="boton-secundario">📊 Mis estadísticas</button>
+            ${esAdmin ? '<button id="adminBtn" class="boton-secundario">🛡️ Panel admin</button>' : ''}
         `;
+
         contenedorOpciones.appendChild(acciones);
 
         contenedorOpciones.querySelector('#rankingBtn').addEventListener('click', mostrarRanking);
         contenedorOpciones.querySelector('#misEstadisticasBtn').addEventListener('click', () => mostrarEstadisticas());
+        contenedorOpciones.querySelector('#historialBtn').addEventListener('click', () => mostrarHistorial());
+        contenedorOpciones.querySelector('#exportarDirectoBtn').addEventListener('click', exportarHistorialCSV);
+
+        if (esAdmin) {
+            contenedorOpciones.querySelector('#adminBtn').addEventListener('click', mostrarPanelAdmin);
+        }
 
     } catch (error) {
         console.error('Error al cargar categorías:', error);
@@ -290,9 +304,10 @@ async function mostrarResultado() {
         <p class="total" style="font-size: 1.4rem;">(${porcentaje}%)</p>
         <p class="mensaje" id="estado-guardado">Guardando intento...</p>
             <div class="botones-accion">
-    <button id="reiniciarBtn">Reiniciar</button>
-    <button id="historialBtn" class="boton-secundario">Ver mi historial</button>
-    <button id="estadisticasBtn" class="boton-secundario">Ver mis estadísticas</button>
+            <button id="reiniciarBtn">Reiniciar</button>
+            <button id="repetirBtn" class="boton-secundario"> Repetir ${categoriaActual.NOMBRE}</button>
+            <button id="historialBtn" class="boton-secundario">Ver mi historial</button>
+            <button id="estadisticasBtn" class="boton-secundario">Ver mis estadísticas</button>
             </div>
     `;
 
@@ -304,6 +319,11 @@ async function mostrarResultado() {
         mostrarTemas();
     });
 
+    contenedorResultado.querySelector('#repetirBtn').addEventListener('click', () => {
+    seleccionarTema(categoriaActual);
+    });
+    
+
     // Botón historial
     contenedorResultado.querySelector('#estadisticasBtn').addEventListener('click', () => {
     mostrarEstadisticas();
@@ -313,17 +333,22 @@ async function mostrarResultado() {
     const elEstado = contenedorResultado.querySelector('#estado-guardado');
 
     try {
-        const res = await fetch(`${API_URL}/api/intentos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id_usuario: USUARIO_ACTUAL_ID,
-                id_categoria: categoriaActual.ID_CATEGORIA,
-                puntaje: porcentaje,
-                total_preguntas: total,
-                respuestas_correctas: puntaje
-            })
-        });
+        const res = await fetch(`${API_URL}/api/intentos-completo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        id_usuario: USUARIO_ACTUAL_ID,
+        id_categoria: categoriaActual.ID_CATEGORIA,
+        puntaje: porcentaje,
+        total_preguntas: total,
+        respuestas_correctas: puntaje,
+        respuestas: respuestasUsuario.map(r => ({
+            id_pregunta: r.idPregunta,
+            id_opcion: r.idOpcion,
+            es_correcta: r.esCorrecta
+        }))
+    })
+});
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.mensaje || `HTTP ${res.status}`);
@@ -341,17 +366,15 @@ async function mostrarResultado() {
 // ============================================================
 // 7) Mostrar historial de intentos
 // ============================================================
-async function mostrarHistorial(pagina = 1) {
-    const limit = 5;  // 5 por página
-    const offset = (pagina - 1) * limit;
-
+async function mostrarHistorial() {
     contenedorPregunta.innerHTML = '<h2 class="pregunta">Cargando historial...</h2>';
     contenedorOpciones.innerHTML = '';
     contenedorResultado.innerHTML = '';
     contenedorHistorial.innerHTML = '';
 
     try {
-        const res = await fetch(`${API_URL}/api/intentos/${USUARIO_ACTUAL_ID}?limit=${limit}&offset=${offset}`);
+        // Traer TODOS los intentos (sin paginar, DataTables pagina en cliente)
+        const res = await fetch(`${API_URL}/api/intentos/${USUARIO_ACTUAL_ID}?limit=100&offset=0`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -378,18 +401,8 @@ async function mostrarHistorial(pagina = 1) {
             `;
         }).join('');
 
-        const { paginas } = data.paginacion;
-
-        // Controles de paginación
-        const botonesPagina = [];
-        for (let i = 1; i <= paginas; i++) {
-            botonesPagina.push(
-                `<button class="boton-pagina ${i === pagina ? 'activa' : ''}" data-pagina="${i}">${i}</button>`
-            );
-        }
-
         contenedorHistorial.innerHTML = `
-            <table class="tabla-historial">
+            <table id="tablaHistorial" class="display tabla-historial" style="width:100%">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -401,23 +414,34 @@ async function mostrarHistorial(pagina = 1) {
                 </thead>
                 <tbody>${filas}</tbody>
             </table>
-            <div class="paginacion">
-                ${paginas > 1 ? botonesPagina.join('') : ''}
-            </div>
             <div class="botones-accion">
-                <button id="exportarBtn" class="boton-secundario"> 📥 Exportar CSV</button>
                 <button id="volverBtn" class="boton-secundario">Volver al inicio</button>
             </div>
         `;
 
-        // Listeners de paginación
-        contenedorHistorial.querySelectorAll('.boton-pagina').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                mostrarHistorial(Number(btn.dataset.pagina));
-            });
+        // Inicializar DataTables
+        new DataTable('#tablaHistorial', {
+            pageLength: 5,
+            lengthMenu: [5, 10, 25, 50],
+            language: {
+                search: "🔍 Buscar:",
+                lengthMenu: "Mostrar _MENU_ registros",
+                info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+                infoEmpty: "Sin registros",
+                zeroRecords: "No se encontraron resultados",
+                paginate: {
+                    first: "Primero",
+                    last: "Último",
+                    next: "Siguiente",
+                    previous: "Anterior"
+                }
+            },
+            layout: {
+                topStart: {
+                    buttons: ['csv', 'excel', 'pdf']
+                }
+            }
         });
-       
-        contenedorHistorial.querySelector('#exportarBtn').addEventListener('click', exportarHistorialCSV);
 
         contenedorHistorial.querySelector('#volverBtn').addEventListener('click', () => {
             contenedorHistorial.innerHTML = '';
@@ -425,7 +449,9 @@ async function mostrarHistorial(pagina = 1) {
         });
 
     } catch (error) {
-        // ...
+        console.error('Error al cargar historial:', error);
+        contenedorPregunta.innerHTML = '<h2 class="pregunta">Error</h2>';
+        contenedorHistorial.innerHTML = `<p class="mensaje error">No se pudo cargar el historial.<br>${error.message}</p>`;
     }
 }
 
@@ -733,5 +759,356 @@ async function mostrarGraficoProgreso() {
     } catch (error) {
         console.error('Error al cargar gráfico:', error);
         canvas.style.display = 'none';
+    }
+}
+
+// Login y sesión
+function verificarSesion() {
+    const guardado = localStorage.getItem('usuario');
+    const pantallaLogin = document.querySelector('#pantalla-login');
+
+    if (guardado) {
+    try {
+        const usuario = JSON.parse(guardado);
+
+        // ⬇️ Verificar expiración
+        if (usuario.expira && Date.now() > usuario.expira) {
+            localStorage.removeItem('usuario');
+            throw new Error('Sesión expirada');
+        }
+        USUARIO_ACTUAL_ID = usuario.id_usuario;
+
+            const nombreEl = document.querySelector('#nombreUsuario');
+            const badge = usuario.rol === 'ADMIN'
+            ? '<span class="badge badge-admin">🛡️ ADMIN</span>'
+            : '<span class="badge badge-user">🎮 USUARIO</span>';
+            nombreEl.innerHTML = `${usuario.nombre} ${badge}`;
+            document.querySelector('#perfilBtn').addEventListener('click', mostrarPerfil);
+            document.querySelector('#logoutBtn').addEventListener('click', cerrarSesion);
+
+            pantallaLogin.style.display = 'none';
+            contenedorUsuario.style.display = 'flex';
+
+            mostrarTemas();
+            return;
+        } catch (e) {
+            localStorage.removeItem('usuario');
+        }
+    }
+
+    // No hay sesión _ mostrar login
+    pantallaLogin.style.display = 'block';
+    contenedorUsuario.style.display = 'none';
+
+    document.querySelector('#formLogin').addEventListener('submit', manejarLogin);
+    // Toggle login ↔ registro
+    document.querySelector('#mostrarRegistro').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelector('#pantalla-login').style.display = 'none';
+    document.querySelector('#pantalla-registro').style.display = 'block';
+    });
+
+    document.querySelector('#mostrarLogin').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelector('#pantalla-registro').style.display = 'none';
+    document.querySelector('#pantalla-login').style.display = 'block';
+    });
+
+document.querySelector('#formRegistro').addEventListener('submit', manejarRegistro);
+}
+
+async function manejarLogin(e) {
+    e.preventDefault();
+
+    const correo = document.querySelector('#loginCorreo').value.trim();
+    const password = document.querySelector('#loginPassword').value;
+    const elError = document.querySelector('#loginError');
+
+    elError.style.display = 'none';
+
+    try {
+        const res = await fetch(`${API_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ correo, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.mensaje || `HTTP ${res.status}`);
+
+        localStorage.setItem('usuario', JSON.stringify({
+        ...data.usuario,
+        expira: Date.now() + (30 * 60 * 1000)
+         }));       
+        verificarSesion();
+
+    } catch (error) {
+        console.error('Error de login:', error);
+        elError.textContent = error.message;
+        elError.style.display = 'block';
+    }
+}
+
+function cerrarSesion() {
+    localStorage.removeItem('usuario');
+    USUARIO_ACTUAL_ID = null;
+    location.reload();
+}
+
+// Revisar act
+// Panel de administrador
+function mostrarPanelAdmin() {
+    contenedorPregunta.innerHTML = '<h2 class="pregunta">🛡️ Panel Admin</h2>';
+    contenedorOpciones.innerHTML = '';
+    contenedorResultado.innerHTML = '';
+    contenedorHistorial.innerHTML = '';
+
+    contenedorHistorial.innerHTML = `
+        <div class="botones-accion" style="justify-content: flex-start; margin-bottom: 24px;">
+            <button id="verUsuariosBtn" class="boton-secundario">👥 Ver todos los usuarios</button>
+            <button id="verTodosIntentosBtn" class="boton-secundario">📋 Ver todos los intentos</button>
+            <button id="verLogsBtn" class="boton-secundario">📋 Logs de auditoría</button>
+            <button id="volverBtn" class="boton-secundario">Volver al inicio</button>
+        </div>
+        <div id="adminContenido"></div>
+    `;
+
+    contenedorHistorial.querySelector('#volverBtn').addEventListener('click', () => {
+        contenedorHistorial.innerHTML = '';
+        mostrarTemas();
+    });
+    
+    // list
+    contenedorHistorial.querySelector('#verLogsBtn').addEventListener('click', mostrarTablaLogsAdmin);
+    contenedorHistorial.querySelector('#verUsuariosBtn').addEventListener('click', mostrarTablaUsuariosAdmin);
+    contenedorHistorial.querySelector('#verLogsBtn').addEventListener('click', mostrarTablaLogsAdmin);  // revO
+
+    contenedorHistorial.querySelector('#verTodosIntentosBtn').addEventListener('click', mostrarTablaIntentosAdmin);
+
+}
+
+async function mostrarTablaUsuariosAdmin() {
+    const cont = document.querySelector('#adminContenido');
+    cont.innerHTML = '<p class="mensaje">Cargando usuarios...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/api/usuarios`);
+        const data = await res.json();
+
+        const filas = data.usuarios.map((u) => `
+            <tr>
+                <td>${u.ID_USUARIO}</td>
+                <td>${u.NOMBRE}</td>
+                <td>${u.CORREO}</td>
+                <td>${u.ROL}</td>
+                <td>${fechaAmigable(u.FECHA_REGISTRO)}</td>
+            </tr>
+        `).join('');
+
+        cont.innerHTML = `
+            <input type="text" id="buscarUsuario" placeholder="🔍 Buscar usuario..." 
+                   style="width:100%; padding:8px; margin-bottom:12px; background:var(--color-fondo); 
+                          color:var(--color-opcion); border:2px solid var(--color-pregunta); border-radius:4px;">
+            <table class="tabla-historial">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Registro</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaUsuariosBody">${filas}</tbody>
+            </table>
+        `;
+
+        // Búsqueda en tiempo real
+        document.querySelector('#buscarUsuario').addEventListener('input', (e) => {
+            const texto = e.target.value.toLowerCase();
+            const filasTabla = document.querySelectorAll('#tablaUsuariosBody tr');
+            filasTabla.forEach((fila) => {
+                const visible = fila.textContent.toLowerCase().includes(texto);
+                fila.style.display = visible ? '' : 'none';
+            });
+        });
+
+    } catch (error) {
+        cont.innerHTML = `<p class="mensaje error">Error: ${error.message}</p>`;
+    }
+}
+
+async function mostrarTablaIntentosAdmin() {
+    const cont = document.querySelector('#adminContenido');
+    cont.innerHTML = '<p class="mensaje">Cargando intentos...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/api/intentos`);
+        const data = await res.json();
+
+        if (data.total === 0) {
+            cont.innerHTML = '<p class="mensaje">No hay intentos registrados.</p>';
+            return;
+        }
+
+        const filas = data.intentos.map((i) => `
+            <tr>
+                <td>${i.ID_INTENTO}</td>
+                <td>${i.USUARIO}</td>
+                <td>${i.CATEGORIA}</td>
+                <td>${i.RESPUESTAS_CORRECTAS}/${i.TOTAL_PREGUNTAS}</td>
+                <td>${i.PUNTAJE}%</td>
+                <td>${fechaAmigable(i.FECHA)}</td>
+            </tr>
+        `).join('');
+
+        cont.innerHTML = `
+            <p class="mensaje" style="text-align:left;">Total: ${data.total} intentos</p>
+            <table class="tabla-historial">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Categoría</th>
+                        <th>Aciertos</th>
+                        <th>Puntaje</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+            </table>
+        `;
+    } catch (error) {
+        cont.innerHTML = `<p class="mensaje error">Error: ${error.message}</p>`;
+    }
+}
+
+// agregados
+// Perfil del usuario
+async function mostrarPerfil() {
+    contenedorPregunta.innerHTML = '<h2 class="pregunta">👤 Mi perfil</h2>';
+    contenedorOpciones.innerHTML = '';
+    contenedorResultado.innerHTML = '';
+    contenedorHistorial.innerHTML = '<p class="mensaje">Cargando...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/api/usuarios/${USUARIO_ACTUAL_ID}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const u = data.usuario;
+
+        contenedorHistorial.innerHTML = `
+            <div class="tarjetas-estadisticas">
+                <div class="tarjeta-stat">
+                    <p class="stat-valor">${u.NOMBRE}</p>
+                    <p class="stat-label">Nombre</p>
+                </div>
+                <div class="tarjeta-stat">
+                    <p class="stat-valor" style="font-size:1.2rem;">${u.CORREO}</p>
+                    <p class="stat-label">Correo</p>
+                </div>
+                <div class="tarjeta-stat">
+                    <p class="stat-valor" style="font-size:1.3rem;">${u.ROL}</p>
+                    <p class="stat-label">Rol</p>
+                </div>
+                <div class="tarjeta-stat">
+                    <p class="stat-valor" style="font-size:1.1rem;">${fechaAmigable(u.FECHA_REGISTRO)}</p>
+                    <p class="stat-label">Registro</p>
+                </div>
+            </div>
+            <div class="botones-accion">
+                <button id="volverBtn" class="boton-secundario">Volver al inicio</button>
+            </div>
+        `;
+
+        contenedorHistorial.querySelector('#volverBtn').addEventListener('click', () => {
+            contenedorHistorial.innerHTML = '';
+            mostrarTemas();
+        });
+
+    } catch (error) {
+        contenedorHistorial.innerHTML = `<p class="mensaje error">Error: ${error.message}</p>`;
+    }
+}
+
+//revisar bcrypt
+// Registro de usuario
+async function manejarRegistro(e) {
+    e.preventDefault();
+
+    const nombre = document.querySelector('#regNombre').value.trim();
+    const correo = document.querySelector('#regCorreo').value.trim();
+    const password = document.querySelector('#regPassword').value;
+    const elError = document.querySelector('#registroError');
+
+    elError.style.display = 'none';
+
+    try {
+        const res = await fetch(`${API_URL}/api/registro`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, correo, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.mensaje || `HTTP ${res.status}`);
+
+        // Registro exitoso → login automático
+        localStorage.setItem('usuario', JSON.stringify({
+            ...data.usuario,
+            expira: Date.now() + (30 * 60 * 1000)
+        }));
+
+        verificarSesion();
+
+    } catch (error) {
+        console.error('Error de registro:', error);
+        elError.textContent = error.message;
+        elError.style.display = 'block';
+    }
+}
+
+async function mostrarTablaLogsAdmin() {
+    const cont = document.querySelector('#adminContenido');
+    cont.innerHTML = '<p class="mensaje">Cargando logs...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/api/logs`);
+        const data = await res.json();
+
+        if (data.total === 0) {
+            cont.innerHTML = '<p class="mensaje">No hay logs registrados.</p>';
+            return;
+        }
+
+        const filas = data.logs.map((l) => `
+            <tr>
+                <td>${l.ID_LOG}</td>
+                <td>${l.USUARIO || '—'}</td>
+                <td>${l.ACCION}</td>
+                <td>${l.DETALLE}</td>
+                <td>${fechaAmigable(l.FECHA)}</td>
+            </tr>
+        `).join('');
+
+        cont.innerHTML = `
+            <p class="mensaje" style="text-align:left;">Total: ${data.total} logs</p>
+            <table class="tabla-historial">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>Detalle</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>${filas}</tbody>
+            </table>
+        `;
+    } catch (error) {
+        cont.innerHTML = `<p class="mensaje error">Error: ${error.message}</p>`;
     }
 }

@@ -1,2 +1,29 @@
+# Dependencias
 node_modules/
+package-lock.json
+
+# Entorno
 .env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Otros
+*.bak
+*.tmp

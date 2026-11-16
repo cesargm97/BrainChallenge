@@ -229,43 +229,55 @@ app.get('/api/categorias', async (req, res) => {
 });
 */
 
-// 🟡 NIVEL 2
+//  NIVEL 2
 
 // GET /api/preguntas?categoria=1 - filtro por categoría (query param opcional)
 app.get('/api/preguntas', async (req, res) => {
     let conexion;
     const categoria = req.query.categoria ? Number(req.query.categoria) : null;
+    const buscar = req.query.buscar ? String(req.query.buscar).trim() : null;
 
     if (req.query.categoria && (!Number.isInteger(categoria) || categoria <= 0)) {
         return res.status(400).json({
             estado: 'ERROR',
-            mensaje: 'Parámetro "categoria" inválido. Debe ser un número entero positivo.'
+            mensaje: 'Parámetro "categoria" inválido.'
         });
     }
 
     try {
         conexion = await obtenerConexion();
 
-        const sqlBase = `
-            SELECT p.ID_PREGUNTA,
-                   p.ENUNCIADO,
-                   p.ESTADO,
-                   p.ID_CATEGORIA,
-                   c.NOMBRE AS CATEGORIA
-            FROM PREGUNTAS p
-            JOIN CATEGORIAS c ON c.ID_CATEGORIA = p.ID_CATEGORIA
-            ${categoria ? 'WHERE p.ID_CATEGORIA = :categoria' : ''}
-            ORDER BY p.ID_PREGUNTA
-        `;
+        const condiciones = [];
+        const binds = {};
 
-        const binds = categoria ? { categoria } : {};
-        const resultado = await conexion.execute(sqlBase, binds, {
-            outFormat: oracledb.OUT_FORMAT_OBJECT
-        });
+        if (categoria) {
+            condiciones.push('p.ID_CATEGORIA = :categoria');
+            binds.categoria = categoria;
+        }
+        if (buscar) {
+            condiciones.push('LOWER(p.ENUNCIADO) LIKE :buscar');
+            binds.buscar = `%${buscar.toLowerCase()}%`;
+        }
+
+        const where = condiciones.length > 0 ? 'WHERE ' + condiciones.join(' AND ') : '';
+
+        const resultado = await conexion.execute(
+            `SELECT p.ID_PREGUNTA,
+                    p.ENUNCIADO,
+                    p.ESTADO,
+                    p.ID_CATEGORIA,
+                    c.NOMBRE AS CATEGORIA
+             FROM PREGUNTAS p
+             JOIN CATEGORIAS c ON c.ID_CATEGORIA = p.ID_CATEGORIA
+             ${where}
+             ORDER BY p.ID_PREGUNTA`,
+            binds,
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
 
         res.json({
             estado: 'OK',
-            filtro: categoria ? { categoria } : null,
+            filtro: { categoria, buscar },
             total: resultado.rows.length,
             preguntas: resultado.rows
         });
@@ -283,6 +295,7 @@ app.get('/api/preguntas', async (req, res) => {
         }
     }
 });
+
 
 // GET /api/preguntas/:id/opciones - pregunta + sus opciones
 app.get('/api/preguntas/:id/opciones', async (req, res) => {
@@ -734,6 +747,265 @@ app.get('/api/ranking', async (req, res) => {
 
 
 
+// POST /api/login en login simple (comparación directa, sin bcrypt)
+app.post('/api/login', async (req, res) => {
+    let conexion;
+    const { correo, password } = req.body || {};
+
+    if (!correo || !password) {
+        return res.status(400).json({
+            estado: 'ERROR',
+            mensaje: 'Correo y contraseña son obligatorios'
+        });
+    }
+
+    try {
+        conexion = await obtenerConexion();
+
+        const resultado = await conexion.execute(
+            `SELECT ID_USUARIO, NOMBRE, CORREO, ROL, PASSWORD_HASH
+             FROM USUARIOS
+             WHERE LOWER(CORREO) = LOWER(:correo)`,
+            { correo },
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (resultado.rows.length === 0) {
+            return res.status(401).json({
+                estado: 'ERROR',
+                mensaje: 'Credenciales incorrectas'
+            });
+        }
+
+        const usuario = resultado.rows[0];
+
+        // Comparación directa (SIN bcrypt, solo para demo rápida)
+        if (usuario.PASSWORD_HASH !== password) {
+            return res.status(401).json({
+                estado: 'ERROR',
+                mensaje: 'Credenciales incorrectas'
+            });
+        }
+
+        res.json({
+            estado: 'OK',
+            mensaje: 'Login correcto',
+            usuario: {
+                id_usuario: usuario.ID_USUARIO,
+                nombre: usuario.NOMBRE,
+                correo: usuario.CORREO,
+                rol: usuario.ROL
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al hacer login:', error.message);
+        res.status(500).json({
+            estado: 'ERROR',
+            mensaje: 'No se pudo procesar el login',
+            detalle: error.message
+        });
+    } finally {
+        if (conexion) {
+            try { await conexion.close(); } catch (e) { console.error(e.message); }
+        }
+    }
+});
+
+// POST /api/registro → crear nuevo usuario
+app.post('/api/registro', async (req, res) => {
+    let conexion;
+    const { nombre, correo, password } = req.body || {};
+
+    // Validaciones
+    if (!nombre || nombre.trim().length < 3) {
+        return res.status(400).json({ estado: 'ERROR', mensaje: 'Nombre muy corto (mínimo 3 caracteres)' });
+    }
+    if (!correo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) {
+        return res.status(400).json({ estado: 'ERROR', mensaje: 'Correo inválido' });
+    }
+    if (!password || password.length < 6) {
+        return res.status(400).json({ estado: 'ERROR', mensaje: 'Contraseña muy corta (mínimo 6 caracteres)' });
+    }
+
+    try {
+        conexion = await obtenerConexion();
+
+        // Verificar que el correo no exista
+        const existe = await conexion.execute(
+            `SELECT ID_USUARIO FROM USUARIOS WHERE LOWER(CORREO) = LOWER(:correo)`,
+            { correo },
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        if (existe.rows.length > 0) {
+            return res.status(409).json({ estado: 'ERROR', mensaje: 'Ese correo ya está registrado' });
+        }
+
+        // Insertar
+        const resultado = await conexion.execute(
+            `INSERT INTO USUARIOS (NOMBRE, CORREO, PASSWORD_HASH, ROL)
+             VALUES (:nombre, :correo, :password, 'USUARIO')
+             RETURNING ID_USUARIO INTO :id_usuario`,
+            {
+                nombre: nombre.trim(),
+                correo: correo.trim().toLowerCase(),
+                password,
+                id_usuario: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }
+            },
+            { autoCommit: true }
+        );
+
+        const nuevoId = resultado.outBinds.id_usuario[0];
+
+        res.status(201).json({
+            estado: 'OK',
+            mensaje: 'Usuario creado correctamente',
+            usuario: {
+                id_usuario: nuevoId,
+                nombre: nombre.trim(),
+                correo: correo.trim().toLowerCase(),
+                rol: 'USUARIO'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al registrar usuario:', error.message);
+        res.status(500).json({
+            estado: 'ERROR',
+            mensaje: 'No se pudo registrar el usuario',
+            detalle: error.message
+        });
+    } finally {
+        if (conexion) {
+            try { await conexion.close(); } catch (e) { console.error(e.message); }
+        }
+    }
+});
+
+// GET /api/logs -  últimos 50 logs de auditoría
+app.get('/api/logs', async (req, res) => {
+    let conexion;
+
+    try {
+        conexion = await obtenerConexion();
+
+        const resultado = await conexion.execute(
+            `SELECT l.ID_LOG,
+                    l.ID_USUARIO,
+                    u.NOMBRE AS USUARIO,
+                    l.ACCION,
+                    l.DETALLE,
+                    TO_CHAR(l.FECHA, 'YYYY-MM-DD HH24:MI:SS') AS FECHA
+             FROM LOGS_ACCESO l
+             LEFT JOIN USUARIOS u ON u.ID_USUARIO = l.ID_USUARIO
+             ORDER BY l.ID_LOG DESC
+             FETCH FIRST 50 ROWS ONLY`,
+            [],
+            { outFormat: oracledb.OUT_FORMAT_OBJECT }
+        );
+
+        res.json({
+            estado: 'OK',
+            total: resultado.rows.length,
+            logs: resultado.rows
+        });
+
+    } catch (error) {
+        console.error('Error al consultar LOGS_ACCESO:', error.message);
+        res.status(500).json({
+            estado: 'ERROR',
+            mensaje: 'No se pudieron consultar los logs',
+            detalle: error.message
+        });
+    } finally {
+        if (conexion) {
+            try { await conexion.close(); } catch (e) { console.error(e.message); }
+        }
+    }
+});
+
+// POST /api/intentos-completo → transacción manual (INTENTOS + RESPUESTAS_DETALLE)
+app.post('/api/intentos-completo', async (req, res) => {
+    let conexion;
+    const { id_usuario, id_categoria, puntaje, total_preguntas, respuestas_correctas, respuestas } = req.body || {};
+
+    // Validaciones básicas
+    if (!Number.isInteger(id_usuario) || id_usuario <= 0) {
+        return res.status(400).json({ estado: 'ERROR', mensaje: 'id_usuario inválido' });
+    }
+    if (!Array.isArray(respuestas) || respuestas.length === 0) {
+        return res.status(400).json({ estado: 'ERROR', mensaje: 'respuestas requeridas' });
+    }
+
+    try {
+        conexion = await obtenerConexion();
+
+        // ⚠️ SIN autoCommit → transacción manual
+        // 1. INSERT cabecera
+        const resultIntento = await conexion.execute(
+            `INSERT INTO INTENTOS
+                (ID_USUARIO, ID_CATEGORIA, PUNTAJE, TOTAL_PREGUNTAS, RESPUESTAS_CORRECTAS)
+             VALUES
+                (:id_usuario, :id_categoria, :puntaje, :total_preguntas, :respuestas_correctas)
+             RETURNING ID_INTENTO INTO :id_intento`,
+            {
+                id_usuario,
+                id_categoria,
+                puntaje,
+                total_preguntas,
+                respuestas_correctas,
+                id_intento: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }
+            }
+            // ⚠️ Sin autoCommit: true
+        );
+
+        const idIntento = resultIntento.outBinds.id_intento[0];
+
+        // 2. INSERT detalles (una por respuesta)
+        for (const r of respuestas) {
+            await conexion.execute(
+                `INSERT INTO RESPUESTAS_DETALLE
+                    (ID_INTENTO, ID_PREGUNTA, ID_OPCION, ES_CORRECTA)
+                 VALUES
+                    (:id_intento, :id_pregunta, :id_opcion, :es_correcta)`,
+                {
+                    id_intento: idIntento,
+                    id_pregunta: r.id_pregunta,
+                    id_opcion: r.id_opcion,
+                    es_correcta: r.es_correcta ? 1 : 0
+                }
+                // ⚠️ Sin autoCommit
+            );
+        }
+
+        // 3. COMMIT manual (si todo fue bien)
+        await conexion.commit();
+
+        res.status(201).json({
+            estado: 'OK',
+            mensaje: 'Intento y detalles guardados (transacción manual)',
+            id_intento: idIntento,
+            total_detalles: respuestas.length
+        });
+
+    } catch (error) {
+        // ⚠️ ROLLBACK manual (si algo falló)
+        if (conexion) {
+            try { await conexion.rollback(); } catch (e) { console.error('Error en rollback:', e.message); }
+        }
+        console.error('Error en transacción:', error.message);
+        res.status(500).json({
+            estado: 'ERROR',
+            mensaje: 'Transacción fallida, se hizo ROLLBACK',
+            detalle: error.message
+        });
+    } finally {
+        if (conexion) {
+            try { await conexion.close(); } catch (e) { console.error(e.message); }
+        }
+    }
+});
 
 // Arranque
 async function iniciarServidor() {

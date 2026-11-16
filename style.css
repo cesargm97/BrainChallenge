@@ -330,3 +330,257 @@ body {
     color: var(--color-fondo);
 }
 
+/*revisar ambos*/
+.pantalla-login {
+    max-width: 400px;
+    margin: 60px auto;
+    padding: 24px;
+    background-color: var(--color-fondo-opcion);
+    border-radius: 12px;
+    text-align: center;
+}
+
+.form-login {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+    text-align: left;
+}
+
+.form-login label {
+    color: var(--color-pregunta);
+    font-size: 1rem;
+}
+
+.form-login input {
+    background-color: var(--color-fondo);
+    color: var(--color-opcion);
+    border: 2px solid var(--color-pregunta);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 1.1rem;
+}
+
+.form-login button {
+    background-color: var(--color-pregunta);
+    color: var(--color-fondo);
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.form-login button:hover {
+    background-color: #a5bd1f;
+}
+
+#contenedor-usuario {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+#nombreUsuario {
+    color: var(--color-pregunta);
+    font-size: 1.2rem;
+}
+
+/* 
+   Badge de rol(es) */
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: 1px;
+    font-weight: bold;
+}
+
+
+
+.badge-admin {
+    background-color: var(--color-pregunta);
+    color: var(--color-fondo-opcion);
+}
+
+.badge-user {
+    background-color: transparent;
+    border: 2px solid var(--color-pregunta);
+    color: var(--color-pregunta);
+}
+
+/* =========================================
+   DataTables (botones y controles)
+   ========================================= */
+
+/* Contenedor principal de DataTables */
+div.dt-container {
+    margin-top: 16px;
+}
+
+/* Input de búsqueda */
+div.dt-container .dt-search input {
+    background-color: var(--color-fondo);
+    color: var(--color-opcion);
+    border: 2px solid var(--color-pregunta);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 1rem;
+    margin-left: 8px;
+}
+
+div.dt-container .dt-search input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-pregunta);
+}
+
+/* Selector de cantidad de registros */
+div.dt-container .dt-length select {
+    background-color: var(--color-fondo);
+    color: var(--color-opcion);
+    border: 2px solid var(--color-pregunta);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 1rem;
+    margin: 0 6px;
+}
+
+/* Texto de info ("Mostrando 1 a 5 de 10 registros") */
+div.dt-container .dt-info {
+    color: var(--color-opcion);
+    font-size: 0.95rem;
+    padding-top: 8px;
+}
+
+/* Controles de paginación */
+div.dt-container .dt-paging {
+    margin-top: 12px;
+}
+
+div.dt-container .dt-paging .dt-paging-button {
+    background-color: transparent !important;
+    border: 2px solid var(--color-pregunta) !important;
+    color: var(--color-pregunta) !important;
+    border-radius: 6px !important;
+    padding: 6px 12px !important;
+    margin: 0 4px !important;
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, color 0.2s !important;
+}
+
+div.dt-container .dt-paging .dt-paging-button:hover {
+    background-color: var(--color-pregunta) !important;
+    color: var(--color-fondo) !important;
+}
+
+div.dt-container .dt-paging .dt-paging-button.current,
+div.dt-container .dt-paging .dt-paging-button.current:hover {
+    background-color: var(--color-pregunta) !important;
+    color: var(--color-fondo) !important;
+    font-weight: bold !important;
+}
+
+div.dt-container .dt-paging .dt-paging-button.disabled,
+div.dt-container .dt-paging .dt-paging-button.disabled:hover {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    background-color: transparent !important;
+    color: var(--color-opcion) !important;
+    border-color: var(--color-opcion) !important;
+}
+
+/* 
+Botones de exportación (CSV / Excel / PDF)
+*/
+
+div.dt-container .dt-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+div.dt-container .dt-buttons .dt-button {
+    background-color: var(--color-fondo-opcion) !important;
+    color: var(--color-pregunta) !important;
+    border: 2px solid var(--color-pregunta) !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-family: 'Departure Mono', monospace !important;
+    font-size: 1rem !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s, color 0.2s !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+div.dt-container .dt-buttons .dt-button:hover {
+    background-color: var(--color-pregunta) !important;
+    color: var(--color-fondo) !important;
+}
+
+/* Iconos/emojis al inicio de cada botón */
+div.dt-container .dt-buttons .dt-button.buttons-csv::before {
+    content: '📥 ';
+}
+
+div.dt-container .dt-buttons .dt-button.buttons-excel::before {
+    content: '📊 ';
+}
+
+div.dt-container .dt-buttons .dt-button.buttons-pdf::before {
+    content: '📄 ';
+}
+
+/* Tabla de DataTables */
+table.dataTable {
+    background-color: var(--color-fondo-opcion) !important;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100% !important;
+}
+
+table.dataTable thead th {
+    background-color: rgba(0, 0, 0, 0.25) !important;
+    color: var(--color-pregunta) !important;
+    font-family: 'Departure Mono', monospace !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem !important;
+    border-bottom: 2px solid var(--color-pregunta) !important;
+    padding: 10px 12px !important;
+}
+
+table.dataTable tbody td {
+    color: var(--color-opcion) !important;
+    font-family: 'Departure Mono', monospace !important;
+    padding: 10px 12px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+table.dataTable tbody tr:hover td {
+    background-color: rgba(189, 215, 45, 0.08) !important;
+}
+
+/* Flechitas de ordenamiento */
+table.dataTable thead th.dt-orderable-asc,
+table.dataTable thead th.dt-orderable-desc {
+    cursor: pointer;
+}
+
+table.dataTable thead th.dt-ordering-asc::after,
+table.dataTable thead th.dt-ordering-desc::after {
+    color: var(--color-pregunta) !important;
+}
