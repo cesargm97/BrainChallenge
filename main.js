@@ -373,7 +373,6 @@ async function mostrarHistorial() {
     contenedorHistorial.innerHTML = '';
 
     try {
-        // Traer TODOS los intentos (sin paginar, DataTables pagina en cliente)
         const res = await fetch(`${API_URL}/api/intentos/${USUARIO_ACTUAL_ID}?limit=100&offset=0`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -402,7 +401,7 @@ async function mostrarHistorial() {
         }).join('');
 
         contenedorHistorial.innerHTML = `
-            <table id="tablaHistorial" class="display tabla-historial" style="width:100%">
+            <table id="tablaHistorial" class="display" style="width:100%">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -423,12 +422,15 @@ async function mostrarHistorial() {
         new DataTable('#tablaHistorial', {
             pageLength: 5,
             lengthMenu: [5, 10, 25, 50],
+            order: [[0, 'desc']],
             language: {
                 search: "🔍 Buscar:",
                 lengthMenu: "Mostrar _MENU_ registros",
                 info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
                 infoEmpty: "Sin registros",
+                infoFiltered: "(filtrado de _MAX_ totales)",
                 zeroRecords: "No se encontraron resultados",
+                emptyTable: "No hay datos disponibles",
                 paginate: {
                     first: "Primero",
                     last: "Último",
@@ -438,7 +440,11 @@ async function mostrarHistorial() {
             },
             layout: {
                 topStart: {
-                    buttons: ['csv', 'excel', 'pdf']
+                    buttons: [
+                        { extend: 'csv',   text: 'CSV' },
+                        { extend: 'excel', text: 'Excel' },
+                        { extend: 'pdf',   text: 'PDF' }
+                    ]
                 }
             }
         });

@@ -531,7 +531,7 @@ div.dt-container .dt-buttons .dt-button:hover {
     color: var(--color-fondo) !important;
 }
 
-/* Iconos/emojis al inicio de cada botón */
+/* Iconos/emojis al inicio de cada botón ver */
 div.dt-container .dt-buttons .dt-button.buttons-csv::before {
     content: '📥 ';
 }
